@@ -1,103 +1,239 @@
-import Image from "next/image";
+'use client';
+import { useEffect, useMemo, useState } from 'react';
+
+type Priority = 'urgent' | 'high' | 'normal' | 'low';
+type Task = { id: number; title: string; done: boolean; priority: Priority };
+type List = { id: number; name: string; tasks: Task[] };
+
+const PRIORITY_ORDER: Record<Priority, number> = {
+  urgent: 3, high: 2, normal: 1, low: 0,
+};
+const PRIORITY_LABEL: Record<Priority, string> = {
+  urgent: 'Urgente', high: 'Alta', normal: 'Normal', low: 'Baixa',
+};
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [lists, setLists] = useState<List[]>([]);
+  const [newListName, setNewListName] = useState('');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+  // carregar/salvar
+  useEffect(() => {
+    const raw = localStorage.getItem('lists');
+    if (raw) { try { setLists(JSON.parse(raw)); } catch {} }
+  }, []);
+  useEffect(() => {
+    localStorage.setItem('lists', JSON.stringify(lists));
+  }, [lists]);
+
+  // ===== LISTAS =====
+  function addList() {
+    const name = newListName.trim();
+    if (!name) return;
+    setLists(prev => [{ id: Date.now(), name, tasks: [] }, ...prev]);
+    setNewListName('');
+  }
+  function removeList(id: number) {
+    setLists(prev => prev.filter(l => l.id !== id));
+  }
+  function renameList(id: number, name: string) {
+    setLists(prev => prev.map(l => (l.id === id ? { ...l, name } : l)));
+  }
+
+  // ===== TASKS =====
+  function addTask(listId: number, title: string, priority: Priority) {
+    const t = title.trim(); if (!t) return;
+    const newTask: Task = { id: Date.now(), title: t, done: false, priority };
+    setLists(prev => prev.map(l => l.id === listId ? { ...l, tasks: [newTask, ...l.tasks] } : l));
+  }
+  function toggleTask(listId: number, taskId: number) {
+    setLists(prev => prev.map(l =>
+      l.id === listId
+        ? { ...l, tasks: l.tasks.map(t => t.id === taskId ? { ...t, done: !t.done } : t) }
+        : l
+    ));
+  }
+  function removeTask(listId: number, taskId: number) {
+    setLists(prev => prev.map(l =>
+      l.id === listId ? { ...l, tasks: l.tasks.filter(t => t.id !== taskId) } : l
+    ));
+  }
+  function clearDone(listId: number) {
+    setLists(prev => prev.map(l =>
+      l.id === listId ? { ...l, tasks: l.tasks.filter(t => !t.done) } : l
+    ));
+  }
+  function setPriority(listId: number, taskId: number, prio: Priority) {
+    setLists(prev => prev.map(l =>
+      l.id === listId
+        ? { ...l, tasks: l.tasks.map(t => t.id === taskId ? { ...t, priority: prio } : t) }
+        : l
+    ));
+  }
+
+  return (
+    <main className="max-w-4xl mx-auto p-6 space-y-6">
+      <h1 className="text-3xl font-bold">Tasks Dashboard </h1>
+
+      {/* criar lista */}
+      <div className="flex gap-2">
+        <input
+          className="border p-2 rounded flex-1"
+          placeholder="Nome da nova lista (Trabalho, Estudos, ...)"
+          value={newListName}
+          onChange={e=>setNewListName(e.target.value)}
+          onKeyDown={e=>e.key==='Enter' && addList()}
+        />
+        <button onClick={addList} className="px-3 rounded bg-black text-white">Criar lista</button>
+      </div>
+
+      {lists.length === 0 && <p className="text-gray-500">Nenhuma lista ainda. Crie a primeira acima 👆</p>}
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {lists.map(list => (
+          <ListCard
+            key={list.id}
+            list={list}
+            onRename={(name)=>renameList(list.id, name)}
+            onRemove={()=>removeList(list.id)}
+            onAddTask={(title, p)=>addTask(list.id, title, p)}
+            onToggle={(taskId)=>toggleTask(list.id, taskId)}
+            onRemoveTask={(taskId)=>removeTask(list.id, taskId)}
+            onClearDone={()=>clearDone(list.id)}
+            onSetPriority={(taskId, p)=>setPriority(list.id, taskId, p)}
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+        ))}
+      </div>
+    </main>
+  );
+}
+
+function ListCard({
+  list,
+  onRename, onRemove,
+  onAddTask, onToggle, onRemoveTask, onClearDone, onSetPriority,
+}: {
+  list: List;
+  onRename: (name: string) => void;
+  onRemove: () => void;
+  onAddTask: (title: string, priority: Priority) => void;
+  onToggle: (taskId: number) => void;
+  onRemoveTask: (taskId: number) => void;
+  onClearDone: () => void;
+  onSetPriority: (taskId: number, p: Priority) => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [priority, setPrio] = useState<Priority>('normal');
+  const [editingName, setEditingName] = useState(false);
+  const [name, setName] = useState(list.name);
+
+  const doneCount = list.tasks.filter(t => t.done).length;
+
+  // ordena: prioridade desc, depois não concluídas primeiro, depois por data (id)
+  const sortedTasks = useMemo(() => {
+    return [...list.tasks].sort((a, b) => {
+      const byPrio = PRIORITY_ORDER[b.priority] - PRIORITY_ORDER[a.priority];
+      if (byPrio !== 0) return byPrio;
+      if (a.done !== b.done) return a.done ? 1 : -1;
+      return b.id - a.id;
+    });
+  }, [list.tasks]);
+
+  return (
+    <section className="border rounded p-3 space-y-3">
+      {/* header */}
+      <div className="flex items-center justify-between gap-2">
+        {editingName ? (
+          <input
+            className="border p-1 rounded flex-1"
+            value={name}
+            onChange={e=>setName(e.target.value)}
+            onKeyDown={e=>{
+              if (e.key==='Enter') { onRename(name.trim() || list.name); setEditingName(false); }
+              if (e.key==='Escape') { setName(list.name); setEditingName(false); }
+            }}
+            onBlur={()=>{ onRename(name.trim() || list.name); setEditingName(false); }}
+            autoFocus
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+        ) : (
+          <h2 className="font-semibold text-lg cursor-text" onClick={()=>setEditingName(true)} title="Clique para renomear">
+            {list.name}
+          </h2>
+        )}
+        <div className="text-sm text-gray-600">{doneCount}/{list.tasks.length}</div>
+        <button onClick={onRemove} className="text-sm">Excluir lista</button>
+      </div>
+
+      {/* add task */}
+      <div className="flex gap-2">
+        <input
+          className="border p-2 rounded flex-1"
+          placeholder="Nova tarefa"
+          value={title}
+          onChange={e=>setTitle(e.target.value)}
+          onKeyDown={e=>e.key==='Enter' && (onAddTask(title, priority), setTitle(''))}
+        />
+        <select
+          className="border p-2 rounded"
+          value={priority}
+          onChange={e=>setPrio(e.target.value as Priority)}
+          title="Prioridade"
         >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          <option value="urgent">Urgente</option>
+          <option value="high">Alta</option>
+          <option value="normal">Normal</option>
+          <option value="low">Baixa</option>
+        </select>
+        <button
+          onClick={()=>{ onAddTask(title, priority); setTitle(''); }}
+          className="px-3 rounded bg-black text-white"
+        >
+          Adicionar
+        </button>
+      </div>
+
+      {/* tasks */}
+      {sortedTasks.length === 0 ? (
+        <p className="text-gray-500 text-sm">Sem tarefas aqui.</p>
+      ) : (
+        <ul className="space-y-2">
+          {sortedTasks.map(t => (
+            <li key={t.id} className="border rounded p-2 flex justify-between items-center gap-3">
+              <button onClick={()=>onToggle(t.id)} className="text-left flex-1">
+                {t.done ? '✅' : '⬜'}{' '}
+                <span className={t.done ? 'line-through text-gray-500' : ''}>{t.title}</span>
+              </button>
+
+              {/* tag de prioridade + seletor */}
+              <span className={`text-xs px-2 py-1 rounded ${
+                t.priority==='urgent' ? 'bg-red-100' :
+                t.priority==='high'   ? 'bg-orange-100' :
+                t.priority==='normal' ? 'bg-green-100' :
+                                        'bg-gray-100'
+              }`}>
+                {PRIORITY_LABEL[t.priority]}
+              </span>
+
+              <select
+                className="border p-1 rounded text-sm"
+                value={t.priority}
+                onChange={e=>onSetPriority(t.id, e.target.value as Priority)}
+                title="Mudar prioridade"
+              >
+                <option value="urgent">Urgente</option>
+                <option value="high">Alta</option>
+                <option value="normal">Normal</option>
+                <option value="low">Baixa</option>
+              </select>
+
+              <button onClick={()=>onRemoveTask(t.id)} className="text-sm">Excluir</button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {doneCount > 0 && (
+        <button onClick={onClearDone} className="text-sm underline">Limpar concluídas</button>
+      )}
+    </section>
   );
 }
