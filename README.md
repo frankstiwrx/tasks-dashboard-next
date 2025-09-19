@@ -18,7 +18,7 @@ https://github.com/frankstiwrx/tasks-dashboard-next
 - TailwindCSS
 
 ## 📸 Screenshots
-<img src="public/screenshot-01.png" width="600" />
+<img src="public/screenshot-01.png" width="800" />
 
 ## 🚀 Rodando localmente
 ```bash
